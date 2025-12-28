@@ -21,14 +21,12 @@ class RBFNN:
         return np.exp(-(distance**2) / (2*(self.sigma**2)))
 
     def  _calculate_phi(self, X):
-        G = np.zeros((X.shape[0], self.n_centers))
-        for i,x in enumerate(X):
-            for j,c in enumerate(self.centers):
-                G[i,j] = self._gaussian_rbf(x, c)
-        return G
+        X_norm = np.sum(X**2, axis=1).reshape(-1, 1)
+        C_norm = np.sum(self.centers**2, axis=1).reshape(1, -1)
+        dists = X_norm + C_norm-2*np.dot(X, self.centers.T)
+        return np.exp(-dists/(2*(self.sigma**2)))
     
     def fit(self, X, y):
-        print(f"Εκπαίδευση K-Means για {self.n_centers} κέντρα")
         kmeans = KMeans(n_clusters=self.n_centers, random_state=42, n_init=10)
         kmeans.fit(X)
         self.centers = kmeans.cluster_centers_
@@ -36,7 +34,6 @@ class RBFNN:
         G = self._calculate_phi(X)
 
         self.weights = np.linalg.pinv(G)@y
-        print("Η εκπαίδευση ολοκληρώθηκε")
     
     def predict(self, X):
         G = self._calculate_phi(X)
@@ -58,6 +55,34 @@ def extract_classes(dataset, classes):
     X = np.array(X)
     y = np.array(y)
     return X, y, imgs
+
+class_names = [
+    "airplane", "automobile", "bird", "cat", "deer",
+    "dog", "frog", "horse", "ship", "truck"
+]
+
+def show_images(indices, title, n=5):
+    plt.figure(figsize=(15, 4))
+    n = min(n, len(indices))
+    for i, idx in enumerate(indices[:n]):
+        img = test_imgs[idx]
+        label = y_test[idx]
+        img = img*torch.tensor((0.2470, 0.2435, 0.2616)).view(3,1,1)
+        img = img+torch.tensor((0.4914, 0.4822, 0.4465)).view(3,1,1)
+        img = img.permute(1,2,0).numpy()
+
+        plt.subplot(1, n, i+1)
+        plt.imshow(img)
+        plt.axis("off")
+
+        true_label = class_names[label]
+        pred_label_val = y_test_pred[idx]
+        pred_label = "cat" if pred_label_val==0 else "dog"
+        plt.title(f"True: {true_label}\nPred: {pred_label}")
+
+    plt.suptitle(title)
+    plt.show()
+    
 
 transform = transforms.Compose([
     transforms.ToTensor(),
@@ -92,5 +117,30 @@ X_test_pca = scaler.transform(X_test_pca)
 y_train_binary = np.where(y_train == 3, 0, 1)
 t_test_binary = np.where(y_test == 3, 0, 1)
 
-rbf = RBFNN(n_centers=100, sigma=2.0)
-rbf.fit(X_train_pca, y_train_binary)
+
+centers_list = [10, 50, 100, 200, 500]
+sigma_list = [0.5, 1.0, 2.0, 5.0, 10.0, 15.0, 20.0, 30.0]
+results = []
+for i in centers_list:
+    for j in sigma_list:
+        rbf = RBFNN(n_centers=i, sigma=j)
+        start = time.perf_counter()
+        rbf.fit(X_train_pca, y_train_binary)
+        end = time.perf_counter()
+        train_time = end-start
+
+        y_train_pred = rbf.predict(X_train_pca)
+        y_test_pred = rbf.predict(X_test_pca)
+        train_accuracy = accuracy_score(y_train_binary, y_train_pred)
+        test_accuracy = accuracy_score(t_test_binary, y_test_pred)
+
+        results.append((i, j, train_accuracy, test_accuracy, train_time))
+        print(f"Centers={i}, Sigma={j}")
+        print(f"Train Accuracy: {train_accuracy*100:.2f}%")
+        print(f"Test Accuracy: {test_accuracy*100:.2f}%")
+        print(f"Train Time: {train_time:.2f} sec")
+
+correct_idx = np.where(t_test_binary==y_test_pred)[0]
+wrong_idx = np.where(t_test_binary!=y_test_pred)[0]
+show_images(correct_idx, "Correctly Classified Images")
+show_images(wrong_idx, "Misclassified Images")
