@@ -7,6 +7,43 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import accuracy_score
 import time
 import matplotlib.pyplot as plt
+from sklearn.cluster import KMeans
+
+class RBFNN:
+    def __init__(self, n_centers=100, sigma=1.0):
+        self.n_centers = n_centers
+        self.sigma = sigma
+        self.centers = None
+        self.weights = None
+    
+    def _gaussian_rbf(self, x, center):
+        distance = np.linalg.norm(x-center)
+        return np.exp(-(distance**2) / (2*(self.sigma**2)))
+
+    def  _calculate_phi(self, X):
+        G = np.zeros((X.shape[0], self.n_centers))
+        for i,x in enumerate(X):
+            for j,c in enumerate(self.centers):
+                G[i,j] = self._gaussian_rbf(x, c)
+        return G
+    
+    def fit(self, X, y):
+        print(f"Εκπαίδευση K-Means για {self.n_centers} κέντρα")
+        kmeans = KMeans(n_clusters=self.n_centers, random_state=42, n_init=10)
+        kmeans.fit(X)
+        self.centers = kmeans.cluster_centers_
+
+        G = self._calculate_phi(X)
+
+        self.weights = np.linalg.pinv(G)@y
+        print("Η εκπαίδευση ολοκληρώθηκε")
+    
+    def predict(self, X):
+        G = self._calculate_phi(X)
+        predictions = G @ self.weights
+        return np.where(predictions>=0.5, 1, 0)
+
+
 
 def extract_classes(dataset, classes):
     X = []
@@ -51,3 +88,9 @@ print("Test PCA shape:", X_test_pca.shape)
 scaler = StandardScaler()
 X_train_pca = scaler.fit_transform(X_train_pca)
 X_test_pca = scaler.transform(X_test_pca)
+
+y_train_binary = np.where(y_train == 3, 0, 1)
+t_test_binary = np.where(y_test == 3, 0, 1)
+
+rbf = RBFNN(n_centers=100, sigma=2.0)
+rbf.fit(X_train_pca, y_train_binary)
