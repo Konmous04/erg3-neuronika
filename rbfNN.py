@@ -8,6 +8,8 @@ from sklearn.metrics import accuracy_score
 import time
 import matplotlib.pyplot as plt
 from sklearn.cluster import KMeans
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neighbors import NearestCentroid
 
 class RBFNN:
     def __init__(self, n_centers=100, sigma=1.0):
@@ -70,6 +72,7 @@ def show_images(indices, title, n=5):
         img = img*torch.tensor((0.2470, 0.2435, 0.2616)).view(3,1,1)
         img = img+torch.tensor((0.4914, 0.4822, 0.4465)).view(3,1,1)
         img = img.permute(1,2,0).numpy()
+        img = np.clip(img, 0, 1)
 
         plt.subplot(1, n, i+1)
         plt.imshow(img)
@@ -139,6 +142,35 @@ for i in centers_list:
         print(f"Train Accuracy: {train_accuracy*100:.2f}%")
         print(f"Test Accuracy: {test_accuracy*100:.2f}%")
         print(f"Train Time: {train_time:.2f} sec")
+
+
+knn1 = KNeighborsClassifier(n_neighbors=1)
+start = time.perf_counter()
+knn1.fit(X_train_pca, y_train_binary)
+y_pred_knn1 = knn1.predict(X_test_pca)
+end = time.perf_counter()
+knn1_time = end-start
+acc_knn1 = accuracy_score(t_test_binary, y_pred_knn1)*100
+
+knn3 = KNeighborsClassifier(n_neighbors=3)
+start = time.perf_counter()
+knn3.fit(X_train_pca, y_train_binary)
+y_pred_knn3 = knn3.predict(X_test_pca)
+end = time.perf_counter()
+knn3_time = end-start
+acc_knn3 = accuracy_score(t_test_binary, y_pred_knn3)*100
+
+ncc = NearestCentroid()
+start = time.perf_counter()
+ncc.fit(X_train_pca, y_train_binary)
+y_pred_ncc = ncc.predict(X_test_pca)
+end = time.perf_counter()
+ncc_time = end-start
+acc_ncc = accuracy_score(t_test_binary, y_pred_ncc)*100
+
+print(f"Ακρίβεια 1-NN: {acc_knn1:.2f}% σε {knn1_time:.2f}sec")
+print(f"Ακρίβεια 3-NN: {acc_knn3:.2f}% σε {knn3_time:.2f}sec")
+print(f"Ακρίβεια Nearest Centroid: {acc_ncc:.2f}% σε {ncc_time:.2f}sec")
 
 correct_idx = np.where(t_test_binary==y_test_pred)[0]
 wrong_idx = np.where(t_test_binary!=y_test_pred)[0]
